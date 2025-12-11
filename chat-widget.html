@@ -143,14 +143,14 @@
             }
         };
 
-        // Function to generate or retrieve a unique chat ID
-        function getChatId() {
-            let chatId = sessionStorage.getItem("chatId");
-            if (!chatId) {
-                chatId = "chat_" + Math.random().toString(36).substr(2, 9); // Unique ID
-                sessionStorage.setItem("chatId", chatId);
+        // Function to generate or retrieve a unique session ID
+        function getSessionId() {
+            let sessionId = sessionStorage.getItem("sessionId");
+            if (!sessionId) {
+                sessionId = "chat_" + Math.random().toString(36).substr(2, 9); // Unique ID
+                sessionStorage.setItem("sessionId", sessionId);
             }
-            return chatId;
+            return sessionId;
         }
 
         // Show chat widget and hide bubble
@@ -179,13 +179,13 @@
             chatBody.appendChild(newMessage);
             chatBody.scrollTop = chatBody.scrollHeight;
 
-            let chatId = getChatId(); // Retrieve the session chat ID
+            let sessionId = getSessionId(); // Retrieve the session chat ID
 
             fetch(window.ChatWidgetConfig.webhook.url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    chatId: chatId,  // Attach chat ID for memory tracking
+                    sessionId: sessionId,  // Attach chat ID for memory tracking
                     message: message,
                     route: window.ChatWidgetConfig.webhook.route
                 })
