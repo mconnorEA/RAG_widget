@@ -315,6 +315,34 @@
             color: var(--ai-dark);
         }
 
+        .chat-link-button {
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            background: rgba(99, 102, 241, 0.08);
+            color: var(--ai-primary);
+            border-radius: 999px;
+            padding: 0.35rem 0.85rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
+        }
+
+        .chat-link-button::after {
+            content: "↗";
+            font-size: 0.75rem;
+        }
+
+        .chat-link-button:hover,
+        .chat-link-button:focus-visible {
+            background: var(--ai-primary);
+            color: #fff;
+            border-color: var(--ai-primary);
+            outline: none;
+        }
+
         #chat-widget-footer {
             padding: 20px 24px 26px;
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.98));
@@ -510,7 +538,26 @@
         }
 
         function applyInlineFormatting(str) {
-            return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            const withBold = str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            return makeUrlsClickable(withBold);
+        }
+
+        function makeUrlsClickable(str) {
+            const urlRegex = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+            return str.replace(urlRegex, match => {
+                let core = match;
+                let suffix = "";
+
+                while (core.length && /[)\],.!?]/.test(core.slice(-1))) {
+                    suffix = core.slice(-1) + suffix;
+                    core = core.slice(0, -1);
+                }
+
+                if (!core) return match;
+
+                const normalizedUrl = core.startsWith("http") ? core : `https://${core}`;
+                return `<button type="button" class="chat-link-button" data-url="${normalizedUrl}">${core}</button>${suffix}`;
+            });
         }
 
         function normalizeForScannability(input) {
@@ -630,6 +677,16 @@
         function toggleEmptyState() {
             if (!chatEmptyState) return;
             chatEmptyState.style.display = chatBody.children.length ? "none" : "flex";
+        }
+
+        if (chatBody) {
+            chatBody.addEventListener("click", event => {
+                const button = event.target.closest(".chat-link-button");
+                if (!button) return;
+                const url = button.dataset.url;
+                if (!url) return;
+                window.open(url, "_blank", "noopener,noreferrer");
+            });
         }
 
         function appendMessage(content, sender = "bot") {
