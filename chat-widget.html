@@ -128,6 +128,7 @@
             flex-direction: column;
             position: relative;
             background: linear-gradient(180deg, rgba(241, 245, 255, 0.6), rgba(255, 255, 255, 0.9));
+            min-height: 0; /* allow inner scroller to shrink with viewport */
         }
 
         #chat-widget-body {
@@ -137,6 +138,7 @@
             display: flex;
             flex-direction: column;
             gap: 18px;
+            min-height: 0;
         }
 
         #chat-widget-body::-webkit-scrollbar {
