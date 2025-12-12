@@ -245,6 +245,53 @@
             border-top-left-radius: 6px;
         }
 
+        .chat-response {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .chat-response-line {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            color: var(--ai-dark);
+            font-size: 0.95rem;
+        }
+
+        .chat-response-line.numbered {
+            padding-left: 4px;
+        }
+
+        .chat-response-number {
+            font-weight: 600;
+            color: var(--ai-primary);
+            min-width: 1.25rem;
+        }
+
+        .chat-response-text {
+            margin: 0;
+            flex: 1;
+            line-height: 1.5;
+        }
+
+        .chat-response-bullet {
+            width: 6px;
+            height: 6px;
+            margin-top: 10px;
+            border-radius: 50%;
+            background: var(--ai-primary);
+            flex-shrink: 0;
+        }
+
+        .chat-response-paragraph {
+            padding-left: 2px;
+        }
+
+        .chat-response strong {
+            color: var(--ai-dark);
+        }
+
         #chat-widget-footer {
             padding: 20px 24px 26px;
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.98));
@@ -427,6 +474,58 @@
             </svg>
         `;
 
+        function escapeHtml(input) {
+            const str = String(input);
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            };
+            return str.replace(/[&<>"']/g, char => map[char]);
+        }
+
+        function applyInlineFormatting(str) {
+            return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        }
+
+        function formatBotResponse(rawText) {
+            if (rawText === undefined || rawText === null) return '';
+            const text = String(rawText);
+            const hasHtml = /<\/?[a-z][\s\S]*>/i.test(text);
+            if (hasHtml) return text;
+
+            const safeText = escapeHtml(text);
+            const lines = safeText.split(/\n+/).map(line => line.trim()).filter(Boolean);
+
+            const formattedLines = lines.map(line => {
+                const numberedMatch = line.match(/^(\d+)\.\s*(.+)/);
+                if (numberedMatch) {
+                    return `
+                        <div class="chat-response-line numbered">
+                            <span class="chat-response-number">${numberedMatch[1]}.</span>
+                            <p class="chat-response-text">${applyInlineFormatting(numberedMatch[2])}</p>
+                        </div>
+                    `;
+                }
+
+                const bulletMatch = line.match(/^(?:[-*]\s+)(.+)/);
+                if (bulletMatch) {
+                    return `
+                        <div class="chat-response-line bullet">
+                            <span class="chat-response-bullet" aria-hidden="true"></span>
+                            <p class="chat-response-text">${applyInlineFormatting(bulletMatch[1])}</p>
+                        </div>
+                    `;
+                }
+
+                return `<p class="chat-response-text chat-response-paragraph">${applyInlineFormatting(line)}</p>`;
+            }).join('');
+
+            return `<div class="chat-response">${formattedLines}</div>`;
+        }
+
         function toggleEmptyState() {
             if (!chatEmptyState) return;
             chatEmptyState.style.display = chatBody.children.length ? "none" : "flex";
@@ -444,11 +543,7 @@
 
             const bubble = document.createElement("div");
             bubble.className = `chat-bubble ${isUser ? "chat-bubble-user" : "chat-bubble-bot"}`;
-            if (isUser) {
-                bubble.textContent = content;
-            } else {
-                bubble.innerHTML = content;
-            }
+            bubble[isUser ? "textContent" : "innerHTML"] = isUser ? content : formatBotResponse(content);
 
             messageRow.appendChild(avatar);
             messageRow.appendChild(bubble);
