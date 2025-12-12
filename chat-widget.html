@@ -251,6 +251,18 @@
             gap: 8px;
         }
 
+        .chat-response-row {
+            margin: 0.35rem 0;
+        }
+
+        .chat-response-row:first-child {
+            margin-top: 0;
+        }
+
+        .chat-response-row:last-child {
+            margin-bottom: 0;
+        }
+
         .chat-response-line {
             display: flex;
             gap: 10px;
@@ -272,7 +284,9 @@
         .chat-response-text {
             margin: 0;
             flex: 1;
-            line-height: 1.5;
+            line-height: 1.35;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         .chat-response-bullet {
@@ -490,40 +504,107 @@
             return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
         }
 
+        function normalizeForScannability(input) {
+            let t = String(input ?? "");
+
+            t = t.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+            t = t.replace(/\s*(#{2,6}\s+)/g, "\n\n$1");
+            t = t.split("\n").map(line => line.replace(/[ \t]+$/g, "")).join("\n");
+            t = t.replace(/\*\*((January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4})\*\*/g, "$1");
+            t = t.replace(/\*\*(\d{4}-\d{2}-\d{2})\*\*/g, "$1");
+            t = t.replace(/\*\*([^*\n]{28,})\*\*/g, "$1");
+            t = t.replace(/^\s*[\*\u2022]\s+/gm, "- ");
+            t = t.replace(/^(\s*\d+)\.\s*(\S)/gm, "$1. $2");
+            t = t.replace(/([^\n])\n(-\s+)/g, "$1\n\n$2");
+            t = t.replace(/([^\n])\n(\d+\.\s+)/g, "$1\n\n$2");
+            t = t.replace(/^(#{2,6}\s+.+)$/gm, "\n$1\n");
+
+            t = t.split(/\n{2,}/).map(block => {
+                const b = block.trim();
+                if (!b) return "";
+                const isList = /^(-\s+|\d+\.\s+)/m.test(b);
+                if (isList) return b;
+
+                if (b.length > 280) {
+                    return b.replace(/([.?!])\s+(?=[A-Z])/g, "$1\n");
+                }
+                return b;
+            }).join("\n\n");
+
+            t = t.replace(/\n{3,}/g, "\n\n").trim();
+
+            return t;
+        }
+
+        function wrapLinesForBubble(text) {
+            const lines = text.split("\n");
+            const rows = [];
+            let paragraphBuffer = [];
+
+            const pushParagraph = () => {
+                if (!paragraphBuffer.length) return;
+                const paragraphText = paragraphBuffer.join("\n").trimEnd();
+                if (!paragraphText) {
+                    paragraphBuffer = [];
+                    return;
+                }
+                rows.push(`
+                    <div class="chat-response-row">
+                        <p class="chat-response-text chat-response-paragraph">${applyInlineFormatting(paragraphText)}</p>
+                    </div>
+                `);
+                paragraphBuffer = [];
+            };
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                    pushParagraph();
+                    return;
+                }
+
+                const numberedMatch = trimmed.match(/^(\d+)\.\s*(.+)/);
+                if (numberedMatch) {
+                    pushParagraph();
+                    rows.push(`
+                        <div class="chat-response-row chat-response-line numbered">
+                            <span class="chat-response-number">${numberedMatch[1]}.</span>
+                            <p class="chat-response-text">${applyInlineFormatting(numberedMatch[2])}</p>
+                        </div>
+                    `);
+                    return;
+                }
+
+                const bulletMatch = trimmed.match(/^(?:[-*]\s+)(.+)/);
+                if (bulletMatch) {
+                    pushParagraph();
+                    rows.push(`
+                        <div class="chat-response-row chat-response-line bullet">
+                            <span class="chat-response-bullet" aria-hidden="true"></span>
+                            <p class="chat-response-text">${applyInlineFormatting(bulletMatch[1])}</p>
+                        </div>
+                    `);
+                    return;
+                }
+
+                paragraphBuffer.push(line);
+            });
+
+            pushParagraph();
+
+            return `<div class="chat-response">${rows.join("")}</div>`;
+        }
+
         function formatBotResponse(rawText) {
-            if (rawText === undefined || rawText === null) return '';
+            if (rawText === undefined || rawText === null) return "";
             const text = String(rawText);
             const hasHtml = /<\/?[a-z][\s\S]*>/i.test(text);
             if (hasHtml) return text;
 
             const safeText = escapeHtml(text);
-            const lines = safeText.split(/\n+/).map(line => line.trim()).filter(Boolean);
+            const normalized = normalizeForScannability(safeText);
 
-            const formattedLines = lines.map(line => {
-                const numberedMatch = line.match(/^(\d+)\.\s*(.+)/);
-                if (numberedMatch) {
-                    return `
-                        <div class="chat-response-line numbered">
-                            <span class="chat-response-number">${numberedMatch[1]}.</span>
-                            <p class="chat-response-text">${applyInlineFormatting(numberedMatch[2])}</p>
-                        </div>
-                    `;
-                }
-
-                const bulletMatch = line.match(/^(?:[-*]\s+)(.+)/);
-                if (bulletMatch) {
-                    return `
-                        <div class="chat-response-line bullet">
-                            <span class="chat-response-bullet" aria-hidden="true"></span>
-                            <p class="chat-response-text">${applyInlineFormatting(bulletMatch[1])}</p>
-                        </div>
-                    `;
-                }
-
-                return `<p class="chat-response-text chat-response-paragraph">${applyInlineFormatting(line)}</p>`;
-            }).join('');
-
-            return `<div class="chat-response">${formattedLines}</div>`;
+            return wrapLinesForBubble(normalized);
         }
 
         function toggleEmptyState() {
