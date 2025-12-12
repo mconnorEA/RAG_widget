@@ -200,6 +200,36 @@
             animation: messageIn 0.3s ease;
         }
 
+        .chat-typing-bubble {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 32px;
+            padding: 10px 14px;
+        }
+
+        .chat-typing-indicator {
+            display: inline-flex;
+            gap: 6px;
+        }
+
+        .chat-typing-indicator span {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--ai-primary);
+            opacity: 0.3;
+            animation: typingBounce 1s infinite;
+        }
+
+        .chat-typing-indicator span:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .chat-typing-indicator span:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
         .chat-message-user {
             flex-direction: row-reverse;
         }
@@ -432,6 +462,11 @@
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
+            30% { transform: translateY(-6px); opacity: 0.9; }
+        }
+
         @keyframes float {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-10px); }
@@ -513,6 +548,7 @@
         const chatEmptyState = document.getElementById("chat-empty-state");
         const chatInputField = document.getElementById("chat-widget-input");
         const sendButton = document.getElementById("chat-widget-send");
+        let typingIndicator = null;
 
         const botAvatarMarkup = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -716,6 +752,41 @@
             toggleEmptyState();
         }
 
+        function showTypingIndicator() {
+            if (!chatBody || typingIndicator) return;
+            const indicatorRow = document.createElement("div");
+            indicatorRow.className = "chat-message chat-message-bot chat-typing-message";
+
+            const avatar = document.createElement("div");
+            avatar.className = "chat-avatar";
+            avatar.innerHTML = botAvatarMarkup;
+
+            const bubble = document.createElement("div");
+            bubble.className = "chat-bubble chat-bubble-bot chat-typing-bubble";
+            bubble.innerHTML = `
+                <div class="chat-typing-indicator" role="status" aria-live="polite" aria-label="Assistant is typing">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+
+            indicatorRow.appendChild(avatar);
+            indicatorRow.appendChild(bubble);
+            chatBody.appendChild(indicatorRow);
+            chatBody.scrollTop = chatBody.scrollHeight;
+            typingIndicator = indicatorRow;
+            toggleEmptyState();
+        }
+
+        function hideTypingIndicator() {
+            if (typingIndicator && typingIndicator.parentNode) {
+                typingIndicator.parentNode.removeChild(typingIndicator);
+            }
+            typingIndicator = null;
+            toggleEmptyState();
+        }
+
         function updateSendButtonState() {
             if (!sendButton) return;
             sendButton.disabled = chatInputField.value.trim() === "";
@@ -741,6 +812,8 @@
 
             let sessionId = getSessionId(); // Retrieve the session chat ID
 
+            showTypingIndicator();
+
             fetch(window.ChatWidgetConfig.webhook.url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -752,9 +825,11 @@
             })
             .then(response => response.json())
             .then(data => {
+                hideTypingIndicator();
                 appendMessage(data.output || "Sorry, I couldn't understand that.", "bot");
             })
             .catch(error => {
+                hideTypingIndicator();
                 console.error("Error:", error);
                 appendMessage("I ran into a problem replying. Please try again in a moment.", "bot");
             });
